@@ -1,0 +1,45 @@
+ Select * From subscriptions
+ Limit 10;
+
+Select MIN(subscription_start), Max(subscription_end) From subscriptions;
+
+--/month table/---------------------
+ With months as (
+   Select '2017-01-01' As first_day, '2017-01-31' As last_day
+   Union
+   Select '2017-02-01' As first_day, '2017-02-28' As last_day
+   Union
+   Select '2017-03-01' As first_day, '2017-03-31' As last_day
+ ),
+ --/cross join table/---------------------
+ cross_join As (
+   Select * From subscriptions Cross Join months 
+   ),
+--/status table/---------------------
+  status AS(
+   Select id, first_day As month,
+   Case
+    When (segment = 87) AND (subscription_start < first_day) AND (subscription_end IS NULL OR subscription_end > first_day)    
+      Then 1 Else 0 
+    End As is_active_87,
+   Case
+    When (segment = 30) AND (subscription_start < first_day) AND (subscription_end IS NULL OR subscription_end > first_day)    
+      Then 1 Else 0 
+    End As is_active_30,
+    Case
+    When (segment = 87) AND (subscription_end BETWEEN first_day AND last_day) Then 1
+    Else 0
+    End AS is_canceled_87, 
+    Case
+    When (segment = 30) AND (subscription_end BETWEEN first_day AND last_day) Then 1
+    Else 0
+    End AS is_canceled_30
+    FROM cross_join
+ ), 
+ --/status aggregate table/---------------------
+ status_aggregate AS (
+   SELECT month, SUM(is_active_30) AS active_30, SUM(is_active_87) AS active_87, SUM(is_canceled_30) AS canceled_30, SUM(is_canceled_87) AS canceled_87
+   FROM status
+   GROUP BY month
+ )
+ SELECT month, ROUND((1.0 * canceled_87/active_87),3) AS churn_87, ROUND((1.0 * canceled_30/active_30),3) AS churn_30 FROM status_aggregate ;
